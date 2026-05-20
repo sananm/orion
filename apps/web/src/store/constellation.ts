@@ -10,6 +10,7 @@ export type GraphNode = {
   movie: Movie;
   x: number;
   y: number;
+  colorIndex: number;
   kind: NodeKind;
   parentId?: number | null;
   spawnedAt: number; // ms — for "just spawned" animation
@@ -26,8 +27,10 @@ export type ConstellationFilters = {
 
 export type ConstellationSnapshot = Pick<
   State,
-  'nodes' | 'edges' | 'liked' | 'disliked' | 'expanded' | 'expansionKeys' | 'initialized' | 'filters'
+  'nodes' | 'edges' | 'liked' | 'disliked' | 'expanded' | 'expansionKeys' | 'initialized' | 'filters' | 'nextColorIndex'
 >;
+
+type LayoutNode = Pick<GraphNode, 'kind' | 'parentId'>;
 
 type State = {
   nodes: Record<number, GraphNode>;
@@ -42,6 +45,7 @@ type State = {
   highlightedId: number | null;
   focusNonce: number;
   sessionNonce: number;
+  nextColorIndex: number;
 };
 
 type Actions = {
@@ -66,24 +70,37 @@ type Actions = {
 
 export type Store = State & Actions;
 
-const NEIGHBOR_RADIUS = 2.25; // world units
-const SEED_RADIUS = 3.2;
+const NEIGHBOR_RADIUS = 3.15; // world units
+const SEED_RADIUS = 4.8;
 const DEFAULT_FILTERS: ConstellationFilters = { languages: [], minRating: null, yearFrom: null, yearTo: null };
-const LAYOUT_ITERATIONS = 80;
-const MAX_LAYOUT_STEP = 0.22;
+const LAYOUT_ITERATIONS = 120;
+const MAX_LAYOUT_STEP = 0.28;
 
 function mobilityFor(node: GraphNode): number {
-  return node.kind === 'seed' ? 0.2 : 1;
+  return node.kind === 'seed' ? 0.18 : 1;
 }
 
-function separationFor(a: GraphNode, b: GraphNode): number {
+function nodeFieldRadius(node: LayoutNode): number {
+  return node.kind === 'seed' ? 2.15 : 1.5;
+}
+
+function fieldSeparationFor(a: LayoutNode, b: LayoutNode): number {
+  const base = nodeFieldRadius(a) + nodeFieldRadius(b);
   const hasSeed = a.kind === 'seed' || b.kind === 'seed';
   const sameParent = a.parentId !== null && a.parentId !== undefined && a.parentId === b.parentId;
-  return hasSeed ? 3.1 : sameParent ? 2.45 : 2.1;
+  return base + (hasSeed ? 0.8 : sameParent ? 0.65 : 0.45);
+}
+
+function separationFor(a: LayoutNode, b: LayoutNode): number {
+  return Math.max(fieldSeparationFor(a, b), a.kind === 'seed' || b.kind === 'seed' ? 4.35 : 3.35);
 }
 
 function desiredEdgeLength(from: GraphNode, to: GraphNode): number {
-  return from.kind === 'seed' || to.kind === 'seed' ? 2.6 : 2.2;
+  return from.kind === 'seed' || to.kind === 'seed' ? 3.7 : 3.1;
+}
+
+function spawnSeparationFor(a: LayoutNode, b: LayoutNode): number {
+  return separationFor(a, b) + 0.95;
 }
 
 function clampStep(value: number): number {
@@ -149,8 +166,29 @@ function normalizeFilters(raw: unknown): ConstellationFilters {
 function normalizeSnapshot(raw: unknown): ConstellationSnapshot | null {
   if (!raw || typeof raw !== 'object') return null;
   const candidate = raw as Partial<ConstellationSnapshot> & { filters?: unknown };
+  const normalizedNodes: Record<number, GraphNode> = {};
+  let fallbackColorIndex = 0;
+
+  if (candidate.nodes && typeof candidate.nodes === 'object') {
+    for (const [idText, rawNode] of Object.entries(candidate.nodes as Record<string, GraphNode>)) {
+      if (!rawNode || typeof rawNode !== 'object') continue;
+      const node = rawNode as GraphNode & { colorIndex?: number };
+      const colorIndex = typeof node.colorIndex === 'number' ? node.colorIndex : fallbackColorIndex;
+      fallbackColorIndex = Math.max(fallbackColorIndex, colorIndex + 1);
+      normalizedNodes[Number(idText)] = {
+        ...node,
+        colorIndex,
+      };
+    }
+  }
+
+  const derivedNextColorIndex = Object.values(normalizedNodes).reduce(
+    (max, node) => Math.max(max, node.colorIndex + 1),
+    0,
+  );
+
   return {
-    nodes: typeof candidate.nodes === 'object' && candidate.nodes ? candidate.nodes as Record<number, GraphNode> : {},
+    nodes: normalizedNodes,
     edges: Array.isArray(candidate.edges) ? candidate.edges as GraphEdge[] : [],
     liked: Array.isArray(candidate.liked) ? candidate.liked.filter((value): value is number => typeof value === 'number') : [],
     disliked: Array.isArray(candidate.disliked) ? candidate.disliked.filter((value): value is number => typeof value === 'number') : [],
@@ -158,48 +196,62 @@ function normalizeSnapshot(raw: unknown): ConstellationSnapshot | null {
     expansionKeys: typeof candidate.expansionKeys === 'object' && candidate.expansionKeys ? candidate.expansionKeys as Record<number, string> : {},
     initialized: Boolean(candidate.initialized),
     filters: normalizeFilters(candidate.filters),
+    nextColorIndex: typeof candidate.nextColorIndex === 'number' ? candidate.nextColorIndex : derivedNextColorIndex,
   };
 }
 
-function evaluateCandidate(x: number, y: number, parent: GraphNode, taken: GraphNode[]): number {
+function evaluateCandidate(
+  x: number,
+  y: number,
+  parent: GraphNode,
+  candidate: LayoutNode,
+  taken: GraphNode[],
+): number {
   let nearestPenalty = 0;
+  let closestGap = Number.POSITIVE_INFINITY;
   for (const n of taken) {
     const dx = x - n.x;
     const dy = y - n.y;
     const dist = Math.hypot(dx, dy);
-    const required = separationFor(parent, n);
+    const required = spawnSeparationFor(candidate, n);
+    closestGap = Math.min(closestGap, dist - required);
     if (dist < required) {
-      nearestPenalty += (required - dist) * 14;
+      nearestPenalty += (required - dist) * 22;
     }
   }
   const outwardX = parent.x;
   const outwardY = parent.y;
   const outwardLen = Math.hypot(outwardX, outwardY) || 1;
-  const px = (x - parent.x) / Math.max(0.001, Math.hypot(x - parent.x, y - parent.y));
-  const py = (y - parent.y) / Math.max(0.001, Math.hypot(x - parent.x, y - parent.y));
+  const parentDistance = Math.max(0.001, Math.hypot(x - parent.x, y - parent.y));
+  const px = (x - parent.x) / parentDistance;
+  const py = (y - parent.y) / parentDistance;
   const outwardBias = ((px * (outwardX / outwardLen) + py * (outwardY / outwardLen)) + 1) * 0.4;
-  return nearestPenalty - outwardBias;
+  const targetRadius = Math.max(NEIGHBOR_RADIUS, spawnSeparationFor(candidate, parent) + 0.45);
+  const orbitPenalty = Math.abs(parentDistance - targetRadius) * 0.7;
+  const breathingRoomBonus = Math.max(0, Math.min(closestGap, 2.2)) * 0.35;
+  return nearestPenalty + orbitPenalty - outwardBias - breathingRoomBonus;
 }
 
 function placeAround(parent: GraphNode, count: number, taken: GraphNode[]): { x: number; y: number }[] {
   const positions: { x: number; y: number }[] = [];
   const facing = Math.atan2(parent.y, parent.x);
   const workingTaken = [...taken];
+  const candidate: LayoutNode = { kind: 'neighbor', parentId: parent.id };
 
   for (let i = 0; i < count; i++) {
     let best: { x: number; y: number } | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
-    const ring = Math.floor(i / 5);
-    const radius = NEIGHBOR_RADIUS + ring * 0.85;
-    const baseAngle = facing + ((i % 5) - 2) * 0.7;
+    const ring = Math.floor(i / 4);
+    const radius = Math.max(NEIGHBOR_RADIUS, spawnSeparationFor(candidate, parent) + 0.45) + ring * 1.35;
+    const baseAngle = facing + ((i % 4) - 1.5) * 0.95;
 
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const sweep = ((attempt / 20) * Math.PI * 1.9) - Math.PI * 0.95;
-      const jitter = (Math.random() - 0.5) * 0.2;
+    for (let attempt = 0; attempt < 28; attempt++) {
+      const sweep = ((attempt / 28) * Math.PI * 2.35) - Math.PI * 1.175;
+      const jitter = (Math.random() - 0.5) * 0.16;
       const angle = baseAngle + sweep + jitter;
       const x = parent.x + Math.cos(angle) * radius;
       const y = parent.y + Math.sin(angle) * radius;
-      const score = evaluateCandidate(x, y, parent, workingTaken);
+      const score = evaluateCandidate(x, y, parent, candidate, workingTaken);
       if (score < bestScore) {
         bestScore = score;
         best = { x, y };
@@ -216,8 +268,8 @@ function placeAround(parent: GraphNode, count: number, taken: GraphNode[]): { x:
       movie: parent.movie,
       x: chosen.x,
       y: chosen.y,
-      kind: 'neighbor',
-      parentId: parent.id,
+      colorIndex: parent.colorIndex,
+      ...candidate,
       spawnedAt: parent.spawnedAt,
     });
   }
@@ -238,6 +290,7 @@ function placeSeeds(seeds: Movie[]): { x: number; y: number }[] {
 function placeAdditionalSeed(taken: GraphNode[]): { x: number; y: number } {
   if (!taken.length) return { x: 0, y: 0 };
 
+  const candidate: LayoutNode = { kind: 'seed', parentId: null };
   const center = taken.reduce(
     (acc, node) => ({ x: acc.x + node.x / taken.length, y: acc.y + node.y / taken.length }),
     { x: 0, y: 0 },
@@ -246,15 +299,19 @@ function placeAdditionalSeed(taken: GraphNode[]): { x: number; y: number } {
     (max, node) => Math.max(max, Math.hypot(node.x - center.x, node.y - center.y)),
     0,
   );
-  const baseRadius = Math.max(maxRadius + SEED_RADIUS * 1.35, SEED_RADIUS * 2.4);
+  const outerClearance = taken.reduce(
+    (max, node) => Math.max(max, Math.hypot(node.x - center.x, node.y - center.y) + spawnSeparationFor(candidate, node)),
+    0,
+  );
+  const baseRadius = Math.max(outerClearance + 1.35, maxRadius + SEED_RADIUS * 1.9, SEED_RADIUS * 3.15);
 
   let best = { x: center.x + baseRadius, y: center.y };
   let bestScore = Number.NEGATIVE_INFINITY;
 
-  for (const ringOffset of [0, 0.9, 1.8]) {
+  for (const ringOffset of [0, 1.1, 2.25]) {
     const radius = baseRadius + ringOffset;
-    for (let step = 0; step < 40; step++) {
-      const angle = (step / 40) * Math.PI * 2 - Math.PI / 2;
+    for (let step = 0; step < 48; step++) {
+      const angle = (step / 48) * Math.PI * 2 - Math.PI / 2;
       const x = center.x + Math.cos(angle) * radius;
       const y = center.y + Math.sin(angle) * radius;
 
@@ -263,9 +320,9 @@ function placeAdditionalSeed(taken: GraphNode[]): { x: number; y: number } {
       for (const node of taken) {
         const distance = Math.hypot(x - node.x, y - node.y);
         minDistance = Math.min(minDistance, distance);
-        const required = node.kind === 'seed' ? 3.6 : 2.8;
+        const required = spawnSeparationFor(candidate, node);
         if (distance < required) {
-          penalty += (required - distance) * 12;
+          penalty += (required - distance) * 18;
         }
       }
 
@@ -370,6 +427,7 @@ export const useConstellation = create<Store>()(
       highlightedId: null,
       focusNonce: 0,
       sessionNonce: 0,
+      nextColorIndex: 0,
 
       reset: () =>
         set((s) => ({
@@ -385,6 +443,7 @@ export const useConstellation = create<Store>()(
           highlightedId: null,
           focusNonce: 0,
           sessionNonce: s.sessionNonce + 1,
+          nextColorIndex: 0,
         })),
 
       rebalanceLayout: () =>
@@ -423,6 +482,7 @@ export const useConstellation = create<Store>()(
             movie: m,
             x: positions[i].x,
             y: positions[i].y,
+            colorIndex: i,
             kind: 'seed',
             parentId: null,
             spawnedAt: now,
@@ -437,6 +497,7 @@ export const useConstellation = create<Store>()(
           initialized: true,
           highlightedId: null,
           focusNonce: 0,
+          nextColorIndex: enriched.length,
         });
         for (const m of enriched) {
           if (get().sessionNonce !== sessionNonce) return;
@@ -459,6 +520,7 @@ export const useConstellation = create<Store>()(
         const now = Date.now();
         const existing = latest.nodes[full.id];
         const position = existing ? { x: existing.x, y: existing.y } : placeAdditionalSeed(Object.values(latest.nodes));
+        const colorIndex = existing ? existing.colorIndex : latest.nextColorIndex;
         const nextNodes = {
           ...latest.nodes,
           [full.id]: {
@@ -466,6 +528,7 @@ export const useConstellation = create<Store>()(
             movie: full,
             x: position.x,
             y: position.y,
+            colorIndex,
             kind: 'seed' as const,
             parentId: null,
             spawnedAt: now,
@@ -477,6 +540,7 @@ export const useConstellation = create<Store>()(
           initialized: true,
           highlightedId: full.id,
           focusNonce: latest.focusNonce + 1,
+          nextColorIndex: existing ? latest.nextColorIndex : latest.nextColorIndex + 1,
         });
 
         if (get().sessionNonce !== sessionNonce) return;
@@ -484,7 +548,7 @@ export const useConstellation = create<Store>()(
       },
 
       expand: async (parentId) => {
-        const { nodes, expansionKeys, loading, liked, disliked, filters, sessionNonce } = get();
+        const { nodes, expansionKeys, loading, liked, disliked, filters, sessionNonce, nextColorIndex } = get();
         const currentFilterKey = filterKey(filters);
         if (loading.includes(parentId)) return;
         const parent = nodes[parentId];
@@ -515,6 +579,7 @@ export const useConstellation = create<Store>()(
               movie: m,
               x: positions[i].x,
               y: positions[i].y,
+              colorIndex: nextColorIndex + i,
               kind: 'neighbor',
               parentId,
               spawnedAt: now,
@@ -532,6 +597,7 @@ export const useConstellation = create<Store>()(
             expanded: s.expanded.includes(parentId) ? s.expanded : [...s.expanded, parentId],
             expansionKeys: { ...s.expansionKeys, [parentId]: currentFilterKey },
             loading: s.loading.filter((id) => id !== parentId),
+            nextColorIndex: Math.max(s.nextColorIndex, nextColorIndex + results.length),
               }),
           }));
         } catch (e) {
@@ -634,6 +700,7 @@ export const useConstellation = create<Store>()(
           expansionKeys: s.expansionKeys,
           initialized: s.initialized,
           filters: s.filters,
+          nextColorIndex: s.nextColorIndex,
         };
       },
 

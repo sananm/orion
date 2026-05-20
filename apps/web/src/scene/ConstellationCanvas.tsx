@@ -7,7 +7,9 @@ import { MovieNode } from './MovieNode';
 import { Edges } from './Edges';
 import { useDragPanControls } from './DragPanControls';
 import { HoverLabel } from './HoverLabel';
+import { DEFAULT_ZOOM, SHOW_ALL_LABELS_ZOOM } from './cameraConfig';
 import { movieMatchesFilters, useConstellation } from '@/store/constellation';
+import { useViewport } from '@/store/viewport';
 
 function Controls() {
   useDragPanControls();
@@ -55,6 +57,7 @@ function Scene({ onOpenDetails }: SceneProps) {
   const rebalanceLayout = useConstellation((s) => s.rebalanceLayout);
   const filters = useConstellation((s) => s.filters);
   const highlightedId = useConstellation((s) => s.highlightedId);
+  const zoom = useViewport((s) => s.zoom);
 
   const [hoverId, setHoverId] = useState<number | null>(null);
   const rebalancedOnLoad = useRef(false);
@@ -104,6 +107,15 @@ function Scene({ onOpenDetails }: SceneProps) {
     rebalancedOnLoad.current = true;
     rebalanceLayout();
   }, [nodes, rebalanceLayout]);
+  const showAllLabels = zoom >= SHOW_ALL_LABELS_ZOOM;
+
+  const visibleLabels = nodeList.filter(
+    (node) =>
+      node.kind === 'seed' ||
+      node.id === highlightedId ||
+      node.id === hoverId ||
+      showAllLabels,
+  );
 
   return (
     <>
@@ -132,17 +144,15 @@ function Scene({ onOpenDetails }: SceneProps) {
           onDoubleClick={() => handleDoubleClick(n.id)}
         />
       ))}
-      {hoverId !== null && visibleNodes[hoverId] && (
-        <HoverLabel node={visibleNodes[hoverId]} nodes={visibleNodes} alwaysVisible />
-      )}
-      {highlightedId !== null && visibleNodes[highlightedId] && hoverId !== highlightedId && (
-        <HoverLabel node={visibleNodes[highlightedId]} nodes={visibleNodes} alwaysVisible highlighted />
-      )}
-      {nodeList
-        .filter((n) => n.kind === 'seed' && n.id !== highlightedId)
-        .map((n) => (
-          <HoverLabel key={`seed-label-${n.id}`} node={n} nodes={visibleNodes} alwaysVisible />
-        ))}
+      {visibleLabels.map((n) => (
+        <HoverLabel
+          key={`label-${n.id}`}
+          node={n}
+          nodes={visibleNodes}
+          alwaysVisible
+          highlighted={highlightedId === n.id || hoverId === n.id}
+        />
+      ))}
     </>
   );
 }
@@ -165,7 +175,7 @@ export function ConstellationCanvas({ onOpenDetails }: Props) {
       <OrthographicCamera
         makeDefault
         position={[0, 0, 50]}
-        zoom={80}
+        zoom={DEFAULT_ZOOM}
         near={0.1}
         far={1000}
       />

@@ -27,6 +27,8 @@ export default function App() {
     <div className="constellation-shell">
       <ConstellationCanvas key={initialized ? 'constellation-live' : 'constellation-seed'} onOpenDetails={(id) => setDetailId(id)} />
       <div className="app-ambient">
+        <div className="app-nebula app-nebula-violet" />
+        <div className="app-nebula app-nebula-amber" />
         <div className="app-grain" />
       </div>
       {!initialized && (

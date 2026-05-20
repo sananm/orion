@@ -1,14 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-
-const MIN_ZOOM = 36;
-const MAX_ZOOM = 220;
-const ZOOM_SENSITIVITY = 0.0015;
-
-function clampZoom(zoom: number): number {
-  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
-}
+import { clampZoom, ZOOM_SENSITIVITY } from './cameraConfig';
+import { useViewport } from '@/store/viewport';
 
 function worldPointAtPointer(
   camera: THREE.OrthographicCamera,
@@ -40,12 +34,15 @@ function worldPointAtPointer(
 export function useDragPanControls(opts?: { enabled?: boolean }) {
   const enabled = opts?.enabled ?? true;
   const { camera, gl, size } = useThree();
+  const zoom = useViewport((s) => s.zoom);
+  const setZoom = useViewport((s) => s.setZoom);
   const dragging = useRef<{ sx: number; sy: number; cx: number; cy: number; moved: boolean } | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
     const dom = gl.domElement;
     const ortho = camera as THREE.OrthographicCamera;
+    setZoom(ortho.zoom);
     const onDown = (e: PointerEvent) => {
       // Only primary button
       if (e.button !== 0) return;
@@ -81,6 +78,7 @@ export function useDragPanControls(opts?: { enabled?: boolean }) {
       if (nextZoom === ortho.zoom) return;
       ortho.zoom = nextZoom;
       ortho.updateProjectionMatrix();
+      setZoom(nextZoom);
       const after = worldPointAtPointer(ortho, size, e.clientX, e.clientY, rect);
       camera.position.x += before.x - after.x;
       camera.position.y += before.y - after.y;
@@ -101,5 +99,14 @@ export function useDragPanControls(opts?: { enabled?: boolean }) {
       dom.removeEventListener('pointerup', onUp);
       dom.removeEventListener('pointercancel', onUp);
     };
-  }, [camera, gl, size, enabled]);
+  }, [camera, gl, size, enabled, setZoom]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const ortho = camera as THREE.OrthographicCamera;
+    const nextZoom = clampZoom(zoom);
+    if (Math.abs(ortho.zoom - nextZoom) < 0.01) return;
+    ortho.zoom = nextZoom;
+    ortho.updateProjectionMatrix();
+  }, [camera, zoom, enabled]);
 }

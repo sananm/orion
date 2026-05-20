@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api, type Movie } from '@/api/client';
+import { MAX_ZOOM, MIN_ZOOM, SHOW_ALL_LABELS_ZOOM } from '@/scene/cameraConfig';
 import { movieMatchesFilters, useConstellation } from '@/store/constellation';
+import { useViewport } from '@/store/viewport';
 import { AccountPanel } from '@/ui/AccountPanel';
 import { formatLanguage, LanguageMultiSelect } from '@/ui/LanguageMultiSelect';
 
@@ -23,6 +25,8 @@ export function Hud() {
   const setYearFromFilter = useConstellation((s) => s.setYearFromFilter);
   const setYearToFilter = useConstellation((s) => s.setYearToFilter);
   const clearFilters = useConstellation((s) => s.clearFilters);
+  const zoom = useViewport((s) => s.zoom);
+  const setZoom = useViewport((s) => s.setZoom);
   const [addOpen, setAddOpen] = useState(false);
   const [q, setQ] = useState('');
   const [findQ, setFindQ] = useState('');
@@ -300,6 +304,27 @@ export function Hud() {
             {searchError && <div className="mt-2 text-[11px] text-red-400">{searchError}</div>}
           </div>
         )}
+        <div className="glass-panel pointer-events-auto w-[min(320px,80vw)] rounded-[22px] p-4 backdrop-blur-md">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[2px] text-zinc-500">View Zoom</div>
+            <span className={`ui-chip ${zoom >= SHOW_ALL_LABELS_ZOOM ? 'ui-chip-cool' : ''}`}>{Math.round(zoom)}</span>
+          </div>
+          <input
+            type="range"
+            min={MIN_ZOOM}
+            max={MAX_ZOOM}
+            step={1}
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="ui-range"
+            aria-label="Constellation zoom"
+          />
+          <div className="mt-2 flex items-center justify-between text-[10px] text-zinc-500">
+            <span>wide</span>
+            <span>{zoom >= SHOW_ALL_LABELS_ZOOM ? 'all labels visible' : 'seed labels only'}</span>
+            <span>close</span>
+          </div>
+        </div>
         <div className="glass-panel pointer-events-auto w-[min(320px,80vw)] rounded-[24px] p-4 backdrop-blur-md">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[10px] uppercase tracking-[2px] text-zinc-500">Filters</div>
@@ -383,7 +408,7 @@ export function Hud() {
         </div>
       </div>
       <div className="glass-panel fixed bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-[10px] tracking-[2px] text-zinc-500 font-light pointer-events-none">
-        drag to pan · scroll or trackpad to zoom · click for details · double-click for more recs · search current movies at the top
+        drag to pan · scroll, trackpad, or slider to zoom · click for details · double-click for more recs · search current movies at the top
       </div>
     </>
   );

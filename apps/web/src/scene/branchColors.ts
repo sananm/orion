@@ -1,26 +1,11 @@
 import type { GraphNode } from '@/store/constellation';
 
-const BRANCH_PALETTE = [
-  '#a8c7ff',
-  '#ffd6a0',
-  '#bfe8db',
-  '#d8c8ff',
-  '#ffc8d9',
-] as const;
-
-export function branchRootId(node: GraphNode, nodes: Record<number, GraphNode>): number {
-  let current: GraphNode | undefined = node;
-  let hops = 0;
-
-  while (current?.parentId !== null && current?.parentId !== undefined && nodes[current.parentId] && hops < 24) {
-    current = nodes[current.parentId];
-    hops += 1;
-  }
-
-  return current?.id ?? node.id;
-}
-
 export function branchColorHex(node: GraphNode, nodes: Record<number, GraphNode>): string {
-  const rootId = branchRootId(node, nodes);
-  return BRANCH_PALETTE[Math.abs(rootId) % BRANCH_PALETTE.length];
+  void nodes;
+  const index = typeof node.colorIndex === 'number' ? node.colorIndex : Math.abs(node.id);
+  const goldenAngle = 137.508;
+  const hue = (index * goldenAngle + 208) % 360;
+  const sat = 78 + (index % 8);
+  const light = 65 + ((index * 19) % 7);
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
 }

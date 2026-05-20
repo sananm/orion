@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
 import { getGlowTexture } from './glowTexture';
+import { stellarColor } from './starColors';
 
 type LayerProps = {
   count: number;
@@ -10,7 +11,7 @@ type LayerProps = {
   spreadY: number;
   size: number;
   opacity: number;
-  parallax: number; // how much this layer moves opposite the camera (1 = locked, 0 = static far)
+  parallax: number;
   z: number;
   drift: number;
   cursorRadius: number;
@@ -19,12 +20,13 @@ type LayerProps = {
 
 function StarLayer({ count, spreadX, spreadY, size, opacity, parallax, z, drift, cursorRadius, cursorStrength }: LayerProps) {
   const meshRef = useRef<THREE.Points>(null);
-  const { camera, viewport } = useThree();
+  const { camera } = useThree();
 
   const { geometry, positions, basePositions, phases, speeds, amplitudes } = useMemo(() => {
     const g = new THREE.BufferGeometry();
     const positions = new Float32Array(count * 3);
     const basePositions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
     const phases = new Float32Array(count);
     const speeds = new Float32Array(count);
     const amplitudes = new Float32Array(count);
@@ -38,6 +40,10 @@ function StarLayer({ count, spreadX, spreadY, size, opacity, parallax, z, drift,
       basePositions[i * 3 + 0] = x;
       basePositions[i * 3 + 1] = y;
       basePositions[i * 3 + 2] = z;
+      const color = stellarColor(i * 17 + count * 3 + Math.round((z + 80) * 11));
+      colors[i * 3 + 0] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
       phases[i] = Math.random() * Math.PI * 2;
       speeds[i] = 0.18 + Math.random() * 0.52;
       amplitudes[i] = drift * (0.45 + Math.random() * 1.2);
@@ -45,6 +51,7 @@ function StarLayer({ count, spreadX, spreadY, size, opacity, parallax, z, drift,
     const positionAttribute = new THREE.BufferAttribute(positions, 3);
     positionAttribute.setUsage(THREE.DynamicDrawUsage);
     g.setAttribute('position', positionAttribute);
+    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     return { geometry: g, positions, basePositions, phases, speeds, amplitudes };
   }, [count, drift, spreadX, spreadY, z]);
 
@@ -56,7 +63,7 @@ function StarLayer({ count, spreadX, spreadY, size, opacity, parallax, z, drift,
       transparent: true,
       opacity,
       depthWrite: false,
-      color: 0xffffff,
+      vertexColors: true,
       blending: THREE.AdditiveBlending,
     });
   }, [size, opacity]);
@@ -65,7 +72,6 @@ function StarLayer({ count, spreadX, spreadY, size, opacity, parallax, z, drift,
     const mesh = meshRef.current;
     if (!mesh) return;
 
-    // Parallax: shift the layer position to counteract camera movement, scaled by `parallax`.
     mesh.position.x = camera.position.x * (1 - parallax);
     mesh.position.y = camera.position.y * (1 - parallax);
 
@@ -117,8 +123,8 @@ export function Starfield() {
         count={760}
         spreadX={width}
         spreadY={height}
-        size={1.4}
-        opacity={0.28}
+        size={1.7}
+        opacity={0.42}
         parallax={0.03}
         z={-30}
         drift={0.32}
@@ -129,8 +135,8 @@ export function Starfield() {
         count={460}
         spreadX={width * 0.92}
         spreadY={height * 0.92}
-        size={2.2}
-        opacity={0.42}
+        size={2.7}
+        opacity={0.6}
         parallax={0.11}
         z={-20}
         drift={0.44}
@@ -141,8 +147,8 @@ export function Starfield() {
         count={280}
         spreadX={width * 0.82}
         spreadY={height * 0.82}
-        size={3.2}
-        opacity={0.62}
+        size={3.8}
+        opacity={0.8}
         parallax={0.24}
         z={-10}
         drift={0.62}
