@@ -1,0 +1,242 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(118, 134, 255, 0.08), transparent 28%),
+    radial-gradient(circle at bottom, rgba(255, 222, 152, 0.05), transparent 34%),
+    #000;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+@keyframes ambientDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -10px, 0) scale(1.04); }
+}
+
+@keyframes shimmerSweep {
+  0% { transform: translateX(-110%); opacity: 0; }
+  20% { opacity: 0.16; }
+  100% { transform: translateX(130%); opacity: 0; }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.constellation-shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #020203;
+}
+
+.app-ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.app-ambient::before,
+.app-ambient::after {
+  content: '';
+  position: absolute;
+  inset: -12%;
+  animation: ambientDrift 18s ease-in-out infinite;
+}
+
+.app-ambient::before {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(181, 198, 255, 0.14), transparent 30%);
+  filter: blur(28px);
+}
+
+.app-ambient::after {
+  background:
+    radial-gradient(circle at 68% 72%, rgba(255, 213, 147, 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 28%, transparent 72%, rgba(255, 255, 255, 0.02));
+  filter: blur(42px);
+  opacity: 0.72;
+  animation-duration: 24s;
+}
+
+.app-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.1;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 140px 140px;
+  mask-image: radial-gradient(circle at center, black 28%, transparent 82%);
+}
+
+.glass-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+    rgba(0, 0, 0, 0.5);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+  animation: riseIn 280ms ease-out;
+}
+
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, transparent 22%, rgba(255, 255, 255, 0.05) 48%, transparent 70%);
+  opacity: 0.5;
+}
+
+.glass-panel:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.glass-panel-strong {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    rgba(0, 0, 0, 0.62);
+}
+
+.glass-panel-highlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-110%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  animation: shimmerSweep 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 0.32rem 0.62rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(228, 228, 231, 0.86);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.ui-chip-cool {
+  border-color: rgba(146, 176, 255, 0.22);
+  background: rgba(92, 123, 219, 0.11);
+  color: rgba(222, 231, 255, 0.94);
+}
+
+.ui-chip-warm {
+  border-color: rgba(255, 210, 138, 0.22);
+  background: rgba(182, 126, 54, 0.12);
+  color: rgba(255, 237, 197, 0.94);
+}
+
+.ui-stat {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ui-stat-cool {
+  border-color: rgba(146, 176, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(146, 176, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.03);
+}
+
+.ui-stat-warm {
+  border-color: rgba(255, 210, 138, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 210, 138, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.03);
+}
+
+.ui-action {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.58rem 0.92rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(212, 212, 216, 0.86);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.ui-action:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.ui-action-primary {
+  background:
+    radial-gradient(circle at top, rgba(162, 192, 255, 0.2), transparent 42%),
+    rgba(104, 131, 216, 0.08);
+  border-color: rgba(146, 176, 255, 0.24);
+}
+
+.ui-action-primary:hover {
+  background:
+    radial-gradient(circle at top, rgba(188, 212, 255, 0.24), transparent 42%),
+    rgba(116, 146, 232, 0.12);
+}
