@@ -1,6 +1,6 @@
 # Movie Constellation
 
-A graph-based movie recommendation web app, presented as an explorable star constellation. Pick a few seed movies; each becomes a bright star whose top-K similar movies orbit nearby. Drag to pan, single-click a star for details, double-click to spawn more neighbors, and like/dislike from the detail card. Likes auto-spawn neighbors and bias future recommendations.
+A graph-based movie recommendation web app, presented as an explorable star constellation. Pick a few seed movies; each becomes a bright star whose top-K similar movies orbit nearby. Drag to pan, scroll/trackpad or use the zoom slider to zoom, single-click a star for details, double-click to spawn more neighbors, and like/dislike from the detail card. Seed labels stay visible when zoomed out; zoom in to reveal labels for all visible nodes. Likes auto-spawn neighbors and bias future recommendations.
 
 ## Stack
 
@@ -135,6 +135,7 @@ apps/
       scene/                 # Three.js scene (Starfield, MovieNode, Edges, DragPanControls)
       ui/                    # SeedSearch, MovieDetailCard, Hud
       store/constellation.ts # Zustand state
+      store/viewport.ts      # shared zoom state
       api/client.ts          # fetch wrappers
   api/                       # FastAPI
     app/
@@ -170,5 +171,5 @@ tone bonus from Reddit discussion tags/cues is added during reranking.
 ## v1 caveats
 
 - Auth is still minimal: local email/password only, no email verification, reset flow, or OAuth provider management yet.
-- Layout is a jittered ring around each parent — fine for tens-to-hundreds of nodes, no force-directed pass yet.
+- Layout now uses exclusion fields plus a lightweight relaxation pass, but very large constellations can still become label-dense when fully zoomed in.
 - TMDB rate limits make the initial 50K fetch slow; pull in batches and resume with `--start-page`.
